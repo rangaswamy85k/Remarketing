@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package com.remarketing.campaign;
+
+option java_multiple_files = true;
+option java_package = "com.remarketing.campaign.grpc";
+option java_outer_classname = "CampaignProto";
+
+service CampaignService {
+    rpc CreateCampaign (CreateCampaignRequest) returns (CampaignResponse);
+}
+
+message CreateCampaignRequest {
+    string name = 1;
+    double budget = 2;
+    string segment_id = 3;
+}
+
+message CampaignResponse {
+    string campaign_id = 1;
+    string status = 2;
+}

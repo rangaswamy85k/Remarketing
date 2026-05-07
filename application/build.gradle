@@ -1,0 +1,20 @@
+apply plugin: 'org.springframework.boot'
+
+dependencies {
+    implementation project(':common-core')
+    implementation project(':common-security')
+    implementation project(':auth-service')
+    implementation project(':product-catalog')
+    implementation project(':order-cart')
+    implementation project(':user-behavior')
+    implementation project(':audience-segmentation')
+    implementation project(':campaign-management')
+    implementation project(':recommendation-engine')
+    implementation project(':remarketing-execution')
+    implementation project(':ab-testing')
+    implementation project(':analytics-insights')
+    
+    implementation 'net.devh:grpc-server-spring-boot-starter:3.1.0.RELEASE'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'com.mysql:mysql-connector-j'
+}

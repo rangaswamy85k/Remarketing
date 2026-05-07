@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package com.remarketing.product;
+
+option java_multiple_files = true;
+option java_package = "com.remarketing.product.grpc";
+option java_outer_classname = "ProductProto";
+
+service ProductService {
+    rpc SearchProducts (SearchRequest) returns (SearchResponse);
+}
+
+message SearchRequest {
+    string query = 1;
+    string user_id = 2; // For tracking the search behavior
+}
+
+message Product {
+    string id = 1;
+    string name = 2;
+    double price = 3;
+    string category = 4;
+}
+
+message SearchResponse {
+    repeated Product products = 1;
+}
