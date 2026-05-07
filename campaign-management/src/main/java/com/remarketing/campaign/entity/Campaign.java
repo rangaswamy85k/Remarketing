@@ -14,6 +14,11 @@ public class Campaign {
     private double budget;
     private String segmentId;
     
+    // Tracking fields
+    private int notificationsSent = 0;
+    private int usersConverted = 0;
+    private double revenueGenerated = 0.0;
+    
     @Transient
     private CampaignState state = CampaignState.DRAFT;
 

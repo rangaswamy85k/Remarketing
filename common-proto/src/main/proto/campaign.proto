@@ -7,7 +7,11 @@ option java_package = "com.remarketing.campaign.grpc";
 option java_outer_classname = "CampaignProto";
 
 service CampaignService {
-    rpc CreateCampaign (CreateCampaignRequest) returns (CampaignResponse);
+    rpc CreateCampaign (CreateCampaignRequest) returns (CampaignResponse);         // ADMIN
+    rpc TerminateCampaign (TerminateCampaignRequest) returns (CampaignResponse);   // ADMIN
+    rpc SendNotification (SendNotificationRequest) returns (SendNotificationResponse); // ADMIN
+    rpc GetCampaignConversions (GetConversionsRequest) returns (ConversionsResponse);  // ADMIN
+    rpc ClickNotification (ClickNotificationRequest) returns (ClickNotificationResponse); // USER
 }
 
 message CreateCampaignRequest {
@@ -16,7 +20,45 @@ message CreateCampaignRequest {
     string segment_id = 3;
 }
 
+message TerminateCampaignRequest {
+    string campaign_id = 1;
+}
+
+message SendNotificationRequest {
+    string campaign_id = 1;
+    string notification_type = 2; // EMAIL or PUSH
+}
+
+message SendNotificationResponse {
+    bool success = 1;
+    string message = 2;
+    int32 notifications_sent = 3;
+}
+
+message GetConversionsRequest {
+    string campaign_id = 1;
+}
+
+message ConversionsResponse {
+    string campaign_id = 1;
+    string campaign_name = 2;
+    int32 notifications_sent = 3;
+    int32 users_converted = 4;
+    double revenue_generated = 5;
+    double campaign_budget = 6;
+}
+
 message CampaignResponse {
     string campaign_id = 1;
     string status = 2;
+    string message = 3;
+}
+
+message ClickNotificationRequest {
+    string notification_id = 1;
+}
+
+message ClickNotificationResponse {
+    bool success = 1;
+    string message = 2;
 }

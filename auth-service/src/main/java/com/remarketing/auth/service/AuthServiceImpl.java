@@ -35,18 +35,21 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
             return;
         }
 
+        String userRole = request.getRole().isEmpty() ? "USER" : request.getRole();
+
         User user = User.builder()
                 .id(UUID.randomUUID().toString())
                 .username(request.getUsername())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .email(request.getEmail())
+                .role(userRole)
                 .build();
 
         userRepository.save(user);
 
         responseObserver.onNext(RegisterResponse.newBuilder()
                 .setUserId(user.getId())
-                .setMessage("User registered successfully")
+                .setMessage("User registered successfully as " + userRole)
                 .build());
         responseObserver.onCompleted();
     }
@@ -56,10 +59,12 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
         Optional<User> userOpt = userRepository.findByUsername(request.getUsername());
         
         if (userOpt.isPresent() && passwordEncoder.matches(request.getPassword(), userOpt.get().getPassword())) {
-            String token = jwtUtil.generateToken(userOpt.get().getId(), userOpt.get().getUsername());
+            String role = userOpt.get().getRole() != null ? userOpt.get().getRole() : "USER";
+            String token = jwtUtil.generateToken(userOpt.get().getId(), userOpt.get().getUsername(), role);
             responseObserver.onNext(LoginResponse.newBuilder()
                     .setToken(token)
                     .setMessage("Login successful")
+                    .setRole(role)
                     .build());
         } else {
             responseObserver.onNext(LoginResponse.newBuilder()

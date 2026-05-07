@@ -14,9 +14,11 @@ import java.util.UUID;
 public class ProductServiceImpl extends ProductServiceGrpc.ProductServiceImplBase {
 
     private final ApplicationEventPublisher eventPublisher;
+    private final com.remarketing.product.repository.ProductRepository productRepository;
 
-    public ProductServiceImpl(ApplicationEventPublisher eventPublisher) {
+    public ProductServiceImpl(ApplicationEventPublisher eventPublisher, com.remarketing.product.repository.ProductRepository productRepository) {
         this.eventPublisher = eventPublisher;
+        this.productRepository = productRepository;
     }
 
     @Override
@@ -26,23 +28,20 @@ public class ProductServiceImpl extends ProductServiceGrpc.ProductServiceImplBas
             eventPublisher.publishEvent(new UserSearchEvent(this, request.getUserId(), request.getQuery()));
         }
 
-        // Mocking product search
-        Product p1 = Product.newBuilder()
-                .setId(UUID.randomUUID().toString())
-                .setName(request.getQuery() + " Pro")
-                .setPrice(99.99)
-                .setCategory("Electronics")
-                .build();
+        // Fetch products from database
+        List<com.remarketing.product.entity.ProductEntity> entities = productRepository.findByNameContainingIgnoreCase(request.getQuery());
 
-        Product p2 = Product.newBuilder()
-                .setId(UUID.randomUUID().toString())
-                .setName(request.getQuery() + " Basic")
-                .setPrice(49.99)
-                .setCategory("Electronics")
-                .build();
+        List<Product> products = entities.stream()
+                .map(entity -> Product.newBuilder()
+                        .setId(entity.getId())
+                        .setName(entity.getName())
+                        .setPrice(entity.getPrice())
+                        .setCategory(entity.getCategory())
+                        .build())
+                .toList();
 
         responseObserver.onNext(SearchResponse.newBuilder()
-                .addAllProducts(List.of(p1, p2))
+                .addAllProducts(products)
                 .build());
         responseObserver.onCompleted();
     }

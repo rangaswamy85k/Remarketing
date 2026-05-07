@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package com.remarketing.analytics;
+
+option java_multiple_files = true;
+option java_package = "com.remarketing.analytics.grpc";
+option java_outer_classname = "AnalyticsProto";
+
+service AnalyticsService {
+    rpc GetROIAnalytics (ROIRequest) returns (ROIResponse);
+    rpc GetConversionReport (ConversionReportRequest) returns (ConversionReportResponse);
+}
+
+message ROIRequest {
+    string campaign_id = 1;
+}
+
+message ROIResponse {
+    string campaign_id = 1;
+    double roi_percentage = 2;
+    string message = 3;
+}
+
+message ConversionReportRequest {
+    string campaign_id = 1;
+}
+
+message ConversionReportResponse {
+    string campaign_id = 1;
+    int32 total_converted_users = 2;
+    double total_revenue = 3;
+}
