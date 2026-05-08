@@ -35,10 +35,19 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
             userRole = roleFromRequest.trim().toUpperCase();
         }
 
-        // Block re-registration
+        // Block re-registration by username
         if (userRepository.existsByUsername(request.getUsername())) {
             responseObserver.onNext(RegisterResponse.newBuilder()
                     .setMessage("Username already registered. Please login instead.")
+                    .build());
+            responseObserver.onCompleted();
+            return;
+        }
+
+        // Block duplicate email
+        if (userRepository.existsByEmail(request.getEmail())) {
+            responseObserver.onNext(RegisterResponse.newBuilder()
+                    .setMessage("Email already registered by another user. Please use a different email.")
                     .build());
             responseObserver.onCompleted();
             return;
@@ -80,6 +89,41 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
         } else {
             responseObserver.onNext(LoginResponse.newBuilder()
                     .setMessage("Invalid credentials")
+                    .build());
+        }
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void logout(LogoutRequest request, StreamObserver<LogoutResponse> responseObserver) {
+        // In a stateless JWT implementation, logout is mostly handled client-side by deleting the token.
+        // For a more secure implementation, we could blacklist the token here.
+        System.out.println("User requested logout. Token to be dropped by client.");
+        
+        responseObserver.onNext(LogoutResponse.newBuilder()
+                .setSuccess(true)
+                .setMessage("Logged out successfully. Please discard the token on the client side.")
+                .build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void deleteAccount(DeleteAccountRequest request, StreamObserver<DeleteAccountResponse> responseObserver) {
+        String userId = request.getUserId();
+        Optional<User> userOpt = userRepository.findById(userId);
+        
+        if (userOpt.isPresent()) {
+            userRepository.deleteById(userId);
+            System.out.println("Account deleted for user ID: " + userId);
+            
+            responseObserver.onNext(DeleteAccountResponse.newBuilder()
+                    .setSuccess(true)
+                    .setMessage("Account deleted successfully")
+                    .build());
+        } else {
+            responseObserver.onNext(DeleteAccountResponse.newBuilder()
+                    .setSuccess(false)
+                    .setMessage("Account not found")
                     .build());
         }
         responseObserver.onCompleted();

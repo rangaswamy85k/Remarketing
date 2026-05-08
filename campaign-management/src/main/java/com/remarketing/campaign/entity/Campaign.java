@@ -12,7 +12,7 @@ public class Campaign {
     private String id = UUID.randomUUID().toString();
     private String name;
     private double budget;
-    private String segmentId;
+    private String category; // e.g. Laptops, Phones
     
     // Tracking fields
     private int notificationsSent = 0;

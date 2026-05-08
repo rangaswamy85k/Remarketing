@@ -1,12 +1,18 @@
 package com.remarketing.cart.service;
 
 import com.remarketing.cart.entity.CartItem;
+import com.remarketing.cart.entity.CheckoutOrder;
+import com.remarketing.cart.entity.CheckoutItem;
 import com.remarketing.cart.repository.CartRepository;
+import com.remarketing.cart.repository.CheckoutOrderRepository;
 import com.remarketing.cart.grpc.*;
 import com.remarketing.cart.grpc.CartServiceGrpc;
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -15,10 +21,12 @@ public class CartServiceImpl extends CartServiceGrpc.CartServiceImplBase {
 
     private final ApplicationEventPublisher eventPublisher;
     private final CartRepository cartRepository;
+    private final CheckoutOrderRepository checkoutOrderRepository;
 
-    public CartServiceImpl(ApplicationEventPublisher eventPublisher, CartRepository cartRepository) {
+    public CartServiceImpl(ApplicationEventPublisher eventPublisher, CartRepository cartRepository, CheckoutOrderRepository checkoutOrderRepository) {
         this.eventPublisher = eventPublisher;
         this.cartRepository = cartRepository;
+        this.checkoutOrderRepository = checkoutOrderRepository;
     }
 
     @Override
@@ -44,15 +52,38 @@ public class CartServiceImpl extends CartServiceGrpc.CartServiceImplBase {
     }
 
     @Override
+    @Transactional
     public void checkout(CheckoutRequest request, StreamObserver<CheckoutResponse> responseObserver) {
         System.out.println("Checkout for user " + request.getUserId());
         
-        // Future DB integration: Move items from Cart table to Order table, and DELETE from Cart table
+        List<CartItem> cartItems = cartRepository.findByUserId(request.getUserId());
+        
+        if (cartItems.isEmpty()) {
+            responseObserver.onNext(CheckoutResponse.newBuilder()
+                    .setSuccess(false)
+                    .setMessage("Cart is empty")
+                    .build());
+            responseObserver.onCompleted();
+            return;
+        }
+
+        CheckoutOrder order = new CheckoutOrder();
+        order.setUserId(request.getUserId());
+        
+        for (CartItem cartItem : cartItems) {
+            CheckoutItem item = new CheckoutItem();
+            item.setProductId(cartItem.getProductId());
+            item.setQuantity(cartItem.getQuantity());
+            order.addItem(item);
+        }
+        
+        checkoutOrderRepository.save(order);
+        cartRepository.deleteAll(cartItems);
 
         responseObserver.onNext(CheckoutResponse.newBuilder()
                 .setSuccess(true)
-                .setOrderId(UUID.randomUUID().toString())
-                .setMessage("Checkout successful")
+                .setOrderId(order.getId())
+                .setMessage("Checkout successful. Order placed.")
                 .build());
         responseObserver.onCompleted();
     }

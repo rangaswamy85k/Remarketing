@@ -19,4 +19,9 @@ public class Notification {
     private String message;
     
     private String status; // SENT, CLICKED
+    
+    // Product recommended in this notification
+    private String productId;
+    private String productName;
+    private double productPrice;
 }

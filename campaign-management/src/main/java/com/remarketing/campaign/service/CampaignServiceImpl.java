@@ -7,10 +7,15 @@ import com.remarketing.campaign.repository.CampaignRepository;
 import com.remarketing.campaign.repository.NotificationRepository;
 import com.remarketing.campaign.grpc.*;
 import com.remarketing.campaign.grpc.CampaignServiceGrpc;
+import com.remarketing.product.entity.ProductEntity;
+import com.remarketing.product.entity.UserSearch;
+import com.remarketing.product.repository.ProductRepository;
+import com.remarketing.product.repository.UserSearchRepository;
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 
@@ -20,13 +25,21 @@ public class CampaignServiceImpl extends CampaignServiceGrpc.CampaignServiceImpl
     private final CampaignRepository campaignRepository;
     private final com.remarketing.auth.repository.UserRepository userRepository;
     private final NotificationRepository notificationRepository;
+    private final UserSearchRepository userSearchRepository;
+    private final ProductRepository productRepository;
     private final Random random = new Random();
 
     @Autowired
-    public CampaignServiceImpl(CampaignRepository campaignRepository, com.remarketing.auth.repository.UserRepository userRepository, NotificationRepository notificationRepository) {
+    public CampaignServiceImpl(CampaignRepository campaignRepository,
+                               com.remarketing.auth.repository.UserRepository userRepository,
+                               NotificationRepository notificationRepository,
+                               UserSearchRepository userSearchRepository,
+                               ProductRepository productRepository) {
         this.campaignRepository = campaignRepository;
         this.userRepository = userRepository;
         this.notificationRepository = notificationRepository;
+        this.userSearchRepository = userSearchRepository;
+        this.productRepository = productRepository;
     }
 
     @Override
@@ -34,17 +47,19 @@ public class CampaignServiceImpl extends CampaignServiceGrpc.CampaignServiceImpl
         Campaign campaign = new Campaign();
         campaign.setName(request.getName());
         campaign.setBudget(request.getBudget());
-        campaign.setSegmentId(request.getSegmentId());
+        // segment_id field in proto is used as category
+        campaign.setCategory(request.getSegmentId());
         campaign.updateState(CampaignState.ACTIVE);
 
         System.out.println(campaign.handleCampaignState());
+        System.out.println("Campaign created for category: " + campaign.getCategory());
         
         campaignRepository.save(campaign);
 
         responseObserver.onNext(CampaignResponse.newBuilder()
                 .setCampaignId(campaign.getId())
                 .setStatus(campaign.getStatusStr())
-                .setMessage("Campaign created successfully")
+                .setMessage("Campaign created successfully for category: " + campaign.getCategory())
                 .build());
         responseObserver.onCompleted();
     }
@@ -79,12 +94,26 @@ public class CampaignServiceImpl extends CampaignServiceGrpc.CampaignServiceImpl
             Campaign c = opt.get();
             if (c.getState() == CampaignState.ACTIVE || "ACTIVE".equals(c.getStatusStr())) {
                 
-                java.util.List<com.remarketing.auth.entity.User> allUsers = userRepository.findAll();
+                String campaignCategory = c.getCategory();
                 
-                if (allUsers.isEmpty()) {
+                // Find all products in this campaign's category
+                List<ProductEntity> categoryProducts = productRepository.findByCategoryIgnoreCase(campaignCategory);
+                if (categoryProducts.isEmpty()) {
                     responseObserver.onNext(SendNotificationResponse.newBuilder()
                             .setSuccess(false)
-                            .setMessage("No users found in database to send notifications.")
+                            .setMessage("No products found in category: " + campaignCategory)
+                            .setNotificationsSent(0)
+                            .build());
+                    responseObserver.onCompleted();
+                    return;
+                }
+
+                // Find users who searched for this campaign's category
+                List<UserSearch> usersWhoSearched = userSearchRepository.findByCategoryIgnoreCase(campaignCategory);
+                if (usersWhoSearched.isEmpty()) {
+                    responseObserver.onNext(SendNotificationResponse.newBuilder()
+                            .setSuccess(false)
+                            .setMessage("No users have searched for category: " + campaignCategory)
                             .setNotificationsSent(0)
                             .build());
                     responseObserver.onCompleted();
@@ -92,38 +121,57 @@ public class CampaignServiceImpl extends CampaignServiceGrpc.CampaignServiceImpl
                 }
 
                 int numToSend = 0;
-                for (com.remarketing.auth.entity.User user : allUsers) {
-                    if (user.getRole() != null && user.getRole().equalsIgnoreCase("USER")) {
-                        
-                        // Check if this user already received a notification for this specific campaign
-                        if (notificationRepository.findFirstByCampaignIdAndUserId(c.getId(), user.getId()).isPresent()) {
-                            continue; // Skip if already notified
-                        }
-
-                        numToSend++;
-                        
-                        Notification notification = new Notification();
-                        notification.setCampaignId(c.getId());
-                        notification.setUserId(user.getId());
-                        notification.setType(request.getNotificationType());
-                        notification.setStatus("SENT");
-                        
-                        if ("EMAIL".equalsIgnoreCase(request.getNotificationType())) {
-                            notification.setMessage("Campaign Offer: " + c.getName());
-                            System.out.println("EMAIL sent to USER : " + user.getUsername() + " & EMAIL: " + user.getEmail() + "  Campaign Offer: " + c.getName() + " [Notification ID: " + notification.getId() + "]");
-                        } else {
-                            notification.setMessage("Campaign Offer: " + c.getName());
-                            System.out.println("PUSH NOTIFICATION sent to USER : " + user.getUsername() + " Campaign Offer: " + c.getName() + " [Notification ID: " + notification.getId() + "]");
-                        }
-                        
-                        notificationRepository.save(notification);
+                java.util.List<String> notificationIds = new java.util.ArrayList<>();
+                
+                for (UserSearch userSearch : usersWhoSearched) {
+                    String userId = userSearch.getUserId();
+                    
+                    // Check if this user already received a notification for this campaign
+                    if (notificationRepository.findFirstByCampaignIdAndUserId(c.getId(), userId).isPresent()) {
+                        continue;
                     }
+                    
+                    // Get user details
+                    Optional<com.remarketing.auth.entity.User> userOpt = userRepository.findById(userId);
+                    if (!userOpt.isPresent()) continue;
+                    com.remarketing.auth.entity.User user = userOpt.get();
+                    
+                    // Only send to USERs
+                    if (user.getRole() == null || !user.getRole().equalsIgnoreCase("USER")) continue;
+
+                    // Pick a RANDOM product from this category for each user
+                    ProductEntity randomProduct = categoryProducts.get(random.nextInt(categoryProducts.size()));
+
+                    numToSend++;
+                    
+                    Notification notification = new Notification();
+                    notification.setCampaignId(c.getId());
+                    notification.setUserId(userId);
+                    notification.setType(request.getNotificationType());
+                    notification.setStatus("SENT");
+                    notification.setProductId(randomProduct.getId());
+                    notification.setProductName(randomProduct.getName());
+                    notification.setProductPrice(randomProduct.getPrice());
+                    notification.setMessage("Campaign: " + c.getName() + " | Product: " + randomProduct.getName() + " @ $" + randomProduct.getPrice());
+                    
+                    if ("EMAIL".equalsIgnoreCase(request.getNotificationType())) {
+                        System.out.println("EMAIL sent to USER : " + user.getUsername() + " & EMAIL: " + user.getEmail() 
+                            + " | Recommended Product: " + randomProduct.getName() + " ($" + randomProduct.getPrice() + ")"
+                            + " [Notification ID: " + notification.getId() + "]");
+                    } else {
+                        System.out.println("PUSH NOTIFICATION sent to USER : " + user.getUsername() 
+                            + " | Recommended Product: " + randomProduct.getName() + " ($" + randomProduct.getPrice() + ")"
+                            + " [Notification ID: " + notification.getId() + "]");
+                    }
+                    
+                    notificationRepository.save(notification);
+                    notificationIds.add(notification.getId());
                 }
 
                 if (numToSend == 0) {
                     responseObserver.onNext(SendNotificationResponse.newBuilder()
                             .setSuccess(false)
-                            .setMessage("No new users found in database to send notifications (they may have already been notified).")
+                            .setMessage("All users who searched for '" + campaignCategory + "' have already been notified.")
                             .setNotificationsSent(0)
                             .build());
                     responseObserver.onCompleted();
@@ -135,7 +183,8 @@ public class CampaignServiceImpl extends CampaignServiceGrpc.CampaignServiceImpl
                 
                 responseObserver.onNext(SendNotificationResponse.newBuilder()
                         .setSuccess(true)
-                        .setMessage("Sent " + request.getNotificationType() + " notifications to " + numToSend + " DB users.")
+                        .setMessage("Sent " + request.getNotificationType() + " notifications to " + numToSend 
+                            + " users who searched for '" + campaignCategory + "'. Notification IDs: " + notificationIds)
                         .setNotificationsSent(numToSend)
                         .build());
             } else {
@@ -168,14 +217,15 @@ public class CampaignServiceImpl extends CampaignServiceGrpc.CampaignServiceImpl
                 if (cOpt.isPresent()) {
                     Campaign c = cOpt.get();
                     c.setUsersConverted(c.getUsersConverted() + 1);
-                    // Add real conversion value (e.g. standard product value or cart value)
-                    c.setRevenueGenerated(c.getRevenueGenerated() + 49.99); 
+                    // Use the actual product price from the notification
+                    c.setRevenueGenerated(c.getRevenueGenerated() + notification.getProductPrice());
                     campaignRepository.save(c);
                 }
                 
                 responseObserver.onNext(ClickNotificationResponse.newBuilder()
                         .setSuccess(true)
-                        .setMessage("Notification marked as read/clicked and conversion tracked.")
+                        .setMessage("Notification clicked! Product: " + notification.getProductName() 
+                            + " ($" + notification.getProductPrice() + ") — Conversion tracked.")
                         .build());
             } else {
                 responseObserver.onNext(ClickNotificationResponse.newBuilder()

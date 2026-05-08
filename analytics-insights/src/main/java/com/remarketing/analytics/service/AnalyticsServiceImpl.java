@@ -24,37 +24,58 @@ public class AnalyticsServiceImpl extends AnalyticsServiceGrpc.AnalyticsServiceI
         this.notificationRepository = notificationRepository;
     }
 
-    public double calculateROI(double revenue, double cost) {
-        if (cost == 0) return 0.0;
-        return ((revenue - cost) / cost) * 100;
-    }
-
     @Override
     public void getROIAnalytics(ROIRequest request, StreamObserver<ROIResponse> responseObserver) {
         Optional<Campaign> opt = campaignRepository.findById(request.getCampaignId());
         if (opt.isPresent()) {
             Campaign c = opt.get();
             
-            // Get real notification data from DB
             List<Notification> notifications = notificationRepository.findByCampaignId(c.getId());
             long totalSent = notifications.size();
-            long totalClicked = notifications.stream().filter(n -> "CLICKED".equals(n.getStatus())).count();
-            double revenue = totalClicked * 49.99; // Each conversion = $49.99
-            double cost = c.getBudget();
             
-            double roi = calculateROI(revenue, cost);
+            // Get clicked notifications and sum their actual product prices
+            List<Notification> clickedNotifications = notifications.stream()
+                    .filter(n -> "CLICKED".equals(n.getStatus()))
+                    .toList();
+            long totalClicked = clickedNotifications.size();
             
-            System.out.println("=== ROI Analytics for Campaign: " + c.getName() + " ===");
+            // Revenue = sum of actual product prices from clicked notifications
+            double revenue = clickedNotifications.stream()
+                    .mapToDouble(Notification::getProductPrice)
+                    .sum();
+            
+            double campaignCost = c.getBudget();
+            
+            // Conversion Rate = (conversions / total_users) * 100
+            double conversionRate = 0.0;
+            if (totalSent > 0) {
+                conversionRate = ((double) totalClicked / totalSent) * 100;
+            }
+            
+            // ROI = (Revenue - Campaign Cost) / Campaign Cost * 100
+            double roi = 0.0;
+            if (campaignCost > 0) {
+                roi = ((revenue - campaignCost) / campaignCost) * 100;
+            }
+            
+            System.out.println("=== ROI Analytics for Campaign: " + c.getName() + " (Category: " + c.getCategory() + ") ===");
             System.out.println("Total Notifications Sent: " + totalSent);
             System.out.println("Total Users Converted (Clicked): " + totalClicked);
-            System.out.println("Revenue Generated: $" + revenue);
-            System.out.println("Campaign Budget: $" + cost);
-            System.out.println("ROI: " + roi + "%");
+            System.out.println("Conversion Rate: " + String.format("%.2f", conversionRate) + "%");
+            System.out.println("Revenue Generated: $" + String.format("%.2f", revenue));
+            System.out.println("Campaign Cost: $" + campaignCost);
+            System.out.println("ROI: " + String.format("%.2f", roi) + "%");
             
             responseObserver.onNext(ROIResponse.newBuilder()
                     .setCampaignId(c.getId())
                     .setRoiPercentage(roi)
-                    .setMessage("ROI calculated from real notification data. Sent: " + totalSent + ", Converted: " + totalClicked + ", Revenue: $" + revenue)
+                    .setMessage("Category: " + c.getCategory()
+                        + ", Sent: " + totalSent 
+                        + ", Converted: " + totalClicked 
+                        + ", Conversion Rate: " + String.format("%.2f", conversionRate) + "%" 
+                        + ", Revenue: $" + String.format("%.2f", revenue)
+                        + ", Campaign Cost: $" + campaignCost 
+                        + ", ROI: " + String.format("%.2f", roi) + "%")
                     .build());
         } else {
             responseObserver.onNext(ROIResponse.newBuilder()
@@ -72,16 +93,29 @@ public class AnalyticsServiceImpl extends AnalyticsServiceGrpc.AnalyticsServiceI
         if (opt.isPresent()) {
             Campaign c = opt.get();
             
-            // Get real notification data from DB
             List<Notification> notifications = notificationRepository.findByCampaignId(c.getId());
             long totalSent = notifications.size();
-            long totalClicked = notifications.stream().filter(n -> "CLICKED".equals(n.getStatus())).count();
-            double revenue = totalClicked * 49.99;
             
-            System.out.println("=== Conversion Report for Campaign: " + c.getName() + " ===");
+            List<Notification> clickedNotifications = notifications.stream()
+                    .filter(n -> "CLICKED".equals(n.getStatus()))
+                    .toList();
+            long totalClicked = clickedNotifications.size();
+            
+            // Revenue = sum of actual product prices
+            double revenue = clickedNotifications.stream()
+                    .mapToDouble(Notification::getProductPrice)
+                    .sum();
+            
+            double conversionRate = 0.0;
+            if (totalSent > 0) {
+                conversionRate = ((double) totalClicked / totalSent) * 100;
+            }
+            
+            System.out.println("=== Conversion Report for Campaign: " + c.getName() + " (Category: " + c.getCategory() + ") ===");
             System.out.println("Total Notifications Sent: " + totalSent);
             System.out.println("Total Users Converted: " + totalClicked);
-            System.out.println("Revenue: $" + revenue);
+            System.out.println("Conversion Rate: " + String.format("%.2f", conversionRate) + "%");
+            System.out.println("Revenue: $" + String.format("%.2f", revenue));
             
             responseObserver.onNext(ConversionReportResponse.newBuilder()
                     .setCampaignId(c.getId())

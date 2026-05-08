@@ -8,11 +8,13 @@ option java_outer_classname = "ProductProto";
 
 service ProductService {
     rpc SearchProducts (SearchRequest) returns (SearchResponse);
+    rpc AddProduct (AddProductRequest) returns (AddProductResponse);       // ADMIN
+    rpc RemoveProduct (RemoveProductRequest) returns (RemoveProductResponse); // ADMIN
 }
 
 message SearchRequest {
     string query = 1;
-    string user_id = 2; // For tracking the search behavior
+    string user_id = 2;
 }
 
 message Product {
@@ -24,4 +26,25 @@ message Product {
 
 message SearchResponse {
     repeated Product products = 1;
+}
+
+message AddProductRequest {
+    string name = 1;
+    double price = 2;
+    string category = 3;
+}
+
+message AddProductResponse {
+    bool success = 1;
+    string product_id = 2;
+    string message = 3;
+}
+
+message RemoveProductRequest {
+    string product_id = 1;
+}
+
+message RemoveProductResponse {
+    bool success = 1;
+    string message = 2;
 }
