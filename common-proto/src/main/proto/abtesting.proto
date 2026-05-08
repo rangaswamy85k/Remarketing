@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package com.remarketing.abtesting;
+
+option java_multiple_files = true;
+option java_package = "com.remarketing.abtesting.grpc";
+option java_outer_classname = "ABTestingProto";
+
+service ABTestingService {
+    rpc AssignVariant (AssignVariantRequest) returns (AssignVariantResponse);
+    rpc GetTestResults (GetTestResultsRequest) returns (GetTestResultsResponse);
+}
+
+message AssignVariantRequest {
+    string user_id = 1;
+    string campaign_id = 2;
+}
+
+message AssignVariantResponse {
+    string variant = 1; // "A" or "B"
+}
+
+message GetTestResultsRequest {
+    string campaign_id = 1;
+}
+
+message GetTestResultsResponse {
+    int32 variant_a_count = 1;
+    int32 variant_b_count = 2;
+}

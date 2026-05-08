@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package com.remarketing.behavior;
+
+option java_multiple_files = true;
+option java_package = "com.remarketing.behavior.grpc";
+option java_outer_classname = "BehaviorProto";
+
+service BehaviorService {
+    rpc LogActivity (LogActivityRequest) returns (LogActivityResponse);
+    rpc GetUserHistory (GetUserHistoryRequest) returns (GetUserHistoryResponse);
+}
+
+message LogActivityRequest {
+    string user_id = 1;
+    string activity_type = 2; // SEARCH, ADD_TO_CART, CLICK, CHECKOUT
+    string details = 3;
+}
+
+message LogActivityResponse {
+    bool success = 1;
+}
+
+message GetUserHistoryRequest {
+    string user_id = 1;
+}
+
+message Activity {
+    string activity_type = 1;
+    string details = 2;
+    string timestamp = 3;
+}
+
+message GetUserHistoryResponse {
+    repeated Activity activities = 1;
+}
