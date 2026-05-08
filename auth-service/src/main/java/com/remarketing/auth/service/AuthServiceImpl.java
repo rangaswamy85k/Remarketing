@@ -27,15 +27,26 @@ public class AuthServiceImpl extends AuthServiceGrpc.AuthServiceImplBase {
 
     @Override
     public void register(RegisterRequest request, StreamObserver<RegisterResponse> responseObserver) {
+        String roleFromRequest = request.getRole();
+        String userRole;
+        if (roleFromRequest == null || roleFromRequest.trim().isEmpty()) {
+            userRole = "USER";
+        } else {
+            userRole = roleFromRequest.trim().toUpperCase();
+        }
+
+        // Block re-registration
         if (userRepository.existsByUsername(request.getUsername())) {
             responseObserver.onNext(RegisterResponse.newBuilder()
-                    .setMessage("Username already exists")
+                    .setMessage("Username already registered. Please login instead.")
                     .build());
             responseObserver.onCompleted();
             return;
         }
-
-        String userRole = request.getRole().isEmpty() ? "USER" : request.getRole();
+        System.out.println("=== REGISTRATION DEBUG ===");
+        System.out.println("Username: " + request.getUsername());
+        System.out.println("Email: " + request.getEmail());
+        System.out.println("Role assigned: " + userRole);
 
         User user = User.builder()
                 .id(UUID.randomUUID().toString())
