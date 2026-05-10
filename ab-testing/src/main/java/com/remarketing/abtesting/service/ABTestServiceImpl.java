@@ -1,34 +1,74 @@
 package com.remarketing.abtesting.service;
 
+import com.remarketing.abtesting.entity.ABTestAssignment;
 import com.remarketing.abtesting.grpc.*;
+import com.remarketing.abtesting.repository.ABTestAssignmentRepository;
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
+import org.springframework.beans.factory.annotation.Autowired;
 
+import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.Random;
 
 @GrpcService
 public class ABTestServiceImpl extends ABTestingServiceGrpc.ABTestingServiceImplBase {
 
+    private final ABTestAssignmentRepository repository;
+
+    @Autowired
+    public ABTestServiceImpl(ABTestAssignmentRepository repository) {
+        this.repository = repository;
+    }
+
     @Override
     public void assignVariant(AssignVariantRequest request, StreamObserver<AssignVariantResponse> responseObserver) {
-        // Simple A/B test variant assignment logic
-        // 50% chance to get Variant A (e.g., EMAIL), 50% for Variant B (e.g., PUSH)
-        String variant = new Random().nextBoolean() ? "A" : "B";
+        // Check if user already has an assigned variant for this campaign
+        Optional<ABTestAssignment> existingOpt = repository.findByUserIdAndCampaignId(request.getUserId(), request.getCampaignId());
         
-        System.out.println("Assigned Variant " + variant + " to User " + request.getUserId() + " for Campaign " + request.getCampaignId());
+        ABTestAssignment assignment;
+        if (existingOpt.isPresent()) {
+            assignment = existingOpt.get();
+            System.out.println("Returning existing Variant " + assignment.getVariant() + " to User " + request.getUserId() + " for Campaign " + request.getCampaignId());
+        } else {
+            // Simple A/B test variant assignment logic (50% chance)
+            String variant = new Random().nextBoolean() ? "A" : "B";
+            
+            assignment = new ABTestAssignment();
+            assignment.setUserId(request.getUserId());
+            assignment.setCampaignId(request.getCampaignId());
+            assignment.setVariant(variant);
+            assignment.setAssignedAt(LocalDateTime.now());
+            
+            repository.save(assignment);
+            System.out.println("Assigned NEW Variant " + variant + " to User " + request.getUserId() + " for Campaign " + request.getCampaignId());
+        }
         
         responseObserver.onNext(AssignVariantResponse.newBuilder()
-                .setVariant(variant)
+                .setAssignmentId(assignment.getId())
+                .setUserId(assignment.getUserId())
+                .setCampaignId(assignment.getCampaignId())
+                .setVariant(assignment.getVariant())
+                .setAssignedAt(assignment.getAssignedAt().toString())
+                .setMessage("Variant assigned successfully")
                 .build());
         responseObserver.onCompleted();
     }
 
     @Override
     public void getTestResults(GetTestResultsRequest request, StreamObserver<GetTestResultsResponse> responseObserver) {
-        // In a real scenario, this would query a database to count conversions per variant
+        String campaignId = request.getCampaignId();
+        
+        int total = repository.countByCampaignId(campaignId);
+        int countA = repository.countByCampaignIdAndVariant(campaignId, "A");
+        int countB = repository.countByCampaignIdAndVariant(campaignId, "B");
+        
         responseObserver.onNext(GetTestResultsResponse.newBuilder()
-                .setVariantACount(100) // Dummy data
-                .setVariantBCount(150)
+                .setCampaignId(campaignId)
+                .setTotalParticipants(total)
+                .setVariantACount(countA)
+                .setVariantBCount(countB)
+                .setMessage("Test results fetched successfully")
                 .build());
         responseObserver.onCompleted();
     }

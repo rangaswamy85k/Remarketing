@@ -17,7 +17,12 @@ message AssignVariantRequest {
 }
 
 message AssignVariantResponse {
-    string variant = 1; // "A" or "B"
+    string assignment_id = 1;
+    string user_id = 2;
+    string campaign_id = 3;
+    string variant = 4; // "A" or "B"
+    string assigned_at = 5;
+    string message = 6;
 }
 
 message GetTestResultsRequest {
@@ -25,6 +30,9 @@ message GetTestResultsRequest {
 }
 
 message GetTestResultsResponse {
-    int32 variant_a_count = 1;
-    int32 variant_b_count = 2;
+    string campaign_id = 1;
+    int32 total_participants = 2;
+    int32 variant_a_count = 3;
+    int32 variant_b_count = 4;
+    string message = 5;
 }
