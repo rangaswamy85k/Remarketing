@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package com.remarketing.fraud;
+
+option java_multiple_files = true;
+option java_package = "com.remarketing.fraud.proto";
+option java_outer_classname = "FraudProto";
+
+service FraudDetectionService {
+  // Admin can record a new fraud alert (e.g., after manual review)
+  rpc CreateAlert(CreateAlertRequest) returns (CreateAlertResponse);
+
+  // Admin can fetch recent alerts for a campaign or date range
+  rpc ListAlerts(ListAlertsRequest) returns (ListAlertsResponse);
+
+  // System‑generated alerts (e.g., spike detection) are pushed to this RPC
+  rpc StreamAlerts(StreamAlertsRequest) returns (stream Alert);
+}
+
+// ------------------------------------------------
+// Request / Response messages
+// ------------------------------------------------
+message CreateAlertRequest {
+  string campaign_id = 1;
+  string alert_type   = 2;   // BOT, INVALID_TRAFFIC, SPIKE, etc.
+  string description  = 3;
+  int64  timestamp    = 4;   // epoch ms
+}
+
+message CreateAlertResponse {
+  string alert_id = 1;
+  string message  = 2;
+}
+
+message ListAlertsRequest {
+  string campaign_id = 1;
+  int64  from_ts     = 2;   // epoch ms (optional)
+  int64  to_ts       = 3;   // epoch ms (optional)
+}
+
+message ListAlertsResponse {
+  repeated Alert alerts = 1;
+}
+
+// Streaming request (just a placeholder for future filtering)
+message StreamAlertsRequest {}
+
+message Alert {
+  string alert_id    = 1;
+  string campaign_id = 2;
+  string alert_type  = 3;
+  string description = 4;
+  int64  timestamp   = 5;
+}

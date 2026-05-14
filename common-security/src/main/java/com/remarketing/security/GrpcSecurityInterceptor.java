@@ -54,6 +54,13 @@ public class GrpcSecurityInterceptor implements ServerInterceptor {
                     }
                 }
 
+                if (methodName.startsWith("com.remarketing.fraud.FraudDetectionService/")) {
+                    if (!"ADMIN".equals(role)) {
+                        call.close(Status.PERMISSION_DENIED.withDescription("Requires ADMIN role"), new Metadata());
+                        return new ServerCall.Listener<ReqT>() {};
+                    }
+                }
+
                 Context ctx = Context.current()
                     .withValue(USER_ID_CONTEXT_KEY, userId)
                     .withValue(ROLE_CONTEXT_KEY, role);
